@@ -17,15 +17,15 @@ public class EditableBufferedReader extends BufferedReader {
     public static final int TILDE = 126; //Símbolo ~
     public static final int ENTER = 13;
 
-    public static final int SECUENCIA_DERECHA = Integer.MIN_VALUE + 1;
-    public static final int SECUENCIA_IZQUIERDA = Integer.MIN_VALUE + 2;
-    public static final int SECUENCIA_ARRIBA = Integer.MIN_VALUE + 3;
-    public static final int SECUENCIA_ABAJO = Integer.MIN_VALUE + 4;
-    public static final int SECUENCIA_HOME = Integer.MIN_VALUE + 5;
-    public static final int SECUENCIA_FIN = Integer.MIN_VALUE + 6;
-    public static final int SECUENCIA_INSERT = Integer.MIN_VALUE + 7;
-    public static final int SECUENCIA_DELETE = Integer.MIN_VALUE + 8;
-    public static final int SECUENCIA_CARACTER = Integer.MIN_VALUE + 9;     
+    public static final int FLECHA_DERECHA = Integer.MIN_VALUE + 1;
+    public static final int FLECHA_IZQUIERDA = Integer.MIN_VALUE + 2;
+    public static final int FLECHA_ARRIBA = Integer.MIN_VALUE + 3;
+    public static final int FLECHA_ABAJO = Integer.MIN_VALUE + 4;
+    public static final int TECLA_HOME = Integer.MIN_VALUE + 5;
+    public static final int TECLA_FIN = Integer.MIN_VALUE + 6;
+    public static final int TECLA_INSERT = Integer.MIN_VALUE + 7;
+    public static final int TECLA_DELETE = Integer.MIN_VALUE + 8;
+    public static final int TECLA_CARACTER = Integer.MIN_VALUE + 9;     
 
     public EditableBufferedReader(InputStreamReader in){
         super(in);
@@ -44,7 +44,7 @@ public class EditableBufferedReader extends BufferedReader {
             Runtime.getRuntime().exec(cmd);
         } catch(IOException e) { System.out.println("Error unsetRaw()");} 
     }
-
+    
     public int read() throws IOException {
         int entrada = 0;
         entrada = super.read();
@@ -53,27 +53,27 @@ public class EditableBufferedReader extends BufferedReader {
             if(entrada == CORCHETE){
                 switch(entrada) {
                     case DERECHA:
-                        return SECUENCIA_DERECHA;
+                        return FLECHA_DERECHA;
                     case IZQUIERDA:
-                        return SECUENCIA_IZQUIERDA;
+                        return FLECHA_IZQUIERDA;
                     case ARRIBA:
-                        return SECUENCIA_ARRIBA;
+                        return FLECHA_ARRIBA;
                     case ABAJO:
-                        return SECUENCIA_ABAJO;
+                        return FLECHA_ABAJO;
                     case HOME:
-                        return SECUENCIA_HOME;
+                        return TECLA_HOME;
                     case END:
-                        return SECUENCIA_FIN;
+                        return TECLA_FIN;
                     case INSERT:
                         entrada = super.read();
                         if(entrada == TILDE){
-                            return SECUENCIA_INSERT;
+                            return TECLA_INSERT;
                         }
                         return -1;
                     case DELETE:
                         entrada = super.read();
                         if(entrada == TILDE){
-                            return SECUENCIA_DELETE;
+                            return TECLA_DELETE;
                         }
                         return -1;
                     default:
@@ -87,5 +87,50 @@ public class EditableBufferedReader extends BufferedReader {
         }
         return -1;
     }
+
+    public String readLine() throws IOException {
+        this.setRaw();
+        Line linea = new Line();
+        int entrada = 0;
+        entrada = super.read();
+        while(entrada!= ENTER){
+            switch(entrada){
+                case FLECHA_DERECHA:
+                    linea.mover_derecha();
+                    //mover hacia la derecha
+                    break;
+                case FLECHA_IZQUIERDA:
+                    linea.mover_izquierda();
+                    //mover hacia la izquierda
+                    break;
+                case TECLA_HOME:
+                    linea.home();
+                    //ir al principio
+                    break;
+                case TECLA_FIN:
+                    linea.end();
+                    //ir al final
+                    break;
+                case TECLA_INSERT:
+                    linea.insertar();
+                    //insertar
+                    break;
+                case TECLA_DELETE:
+                    linea.borrar_caracter();
+                    //borrar
+                    break;
+                default: //otro caracter
+                linea.insertar_caracter((char) entrada);
+                    //añadirlo...
+                    break;
+            }
+            entrada = super.read(); //diría que se tiene que volver a leer
+        }
+        String str = linea.toString();
+        this.unsetRaw(); 
+        return str;
+    }
+
+    
 
 }
