@@ -1,134 +1,119 @@
 import java.io.*;
 import java.lang.String;
 
-public class EditableBufferedReader extends BufferedReader {
+public class EditableBufferedReader extends BufferedReader { //Controller
 
-    public static final int ESC = 27;
-    public static final int BACKSPACE = 127;
-    public static final int DERECHA = 67;
-    public static final int IZQUIERDA = 68;
-    public static final int ARRIBA = 65;
-    public static final int ABAJO = 66;
-    public static final int HOME = 72;
-    public static final int END = 70;
-    public static final int INSERT = 50;
-    public static final int DELETE = 51;
-    public static final int CORCHETE = 91;
-    public static final int TILDE = 126; //Símbolo ~
-    public static final int ENTER = 13;
+    private Line linea;
+    private Console console;
 
-    public static final int FLECHA_DERECHA = Integer.MIN_VALUE + 1;
-    public static final int FLECHA_IZQUIERDA = Integer.MIN_VALUE + 2;
-    public static final int FLECHA_ARRIBA = Integer.MIN_VALUE + 3;
-    public static final int FLECHA_ABAJO = Integer.MIN_VALUE + 4;
-    public static final int TECLA_HOME = Integer.MIN_VALUE + 5;
-    public static final int TECLA_FIN = Integer.MIN_VALUE + 6;
-    public static final int TECLA_INSERT = Integer.MIN_VALUE + 7;
-    public static final int TECLA_DELETE = Integer.MIN_VALUE + 8;
-    public static final int TECLA_CARACTER = Integer.MIN_VALUE + 9;     
-
-    public EditableBufferedReader(InputStreamReader in){
+    public EditableBufferedReader(Reader in){
         super(in);
+        this.linea = new Line();
+        this.console = new Console();
+        this.linea.addObserver(this.console);
     }
     
-    public void setRaw(){
+    public void setRaw() {
         try{
             String[] cmd = {"/bin/sh","-c", "stty -echo raw </dev/tty"};
             Runtime.getRuntime().exec(cmd);
-        } catch(IOException e) { System.out.println("Error setRaw()");} 
+        } catch(Exception e) { System.out.println("Error setRaw()");} 
     }
 
     public void unsetRaw(){
         try{
             String[] cmd = {"/bin/sh","-c", "stty echo cooked </dev/tty"};
             Runtime.getRuntime().exec(cmd);
-        } catch(IOException e) { System.out.println("Error unsetRaw()");} 
+        } catch(Exception e) { System.out.println("Error unsetRaw()");} 
     }
     
-    public int read() throws IOException {
-        int entrada = 0;
-        entrada = super.read();
-        if(entrada == ESC){
+    public int read() {
+        int numleido = -1; //Iniciamos con un -1 ya que este entero no se corresponde con ningún carácter
+        try {
+        int entrada = super.read();
+        if(entrada != Dictionary.ESC){ //Leemos primero los carácteres 'normales' y el backspace ya que son directos
+            if(entrada == Dictionary.BACKSPACE){ // y entraría directamente en esta condición. 
+                return Dictionary.TECLA_BACKSPACE;
+            } else {
+                numleido = entrada;
+            } 
+        } else {                        //Si no es así, como en el caso de las flechas vendríamos hasta aquí.
+            entrada = super.read();     //Todos estos carácteres tienen en común que se concatenan ^[ y [
             entrada = super.read();
-            if(entrada == CORCHETE){
-                switch(entrada) {
-                    case DERECHA:
-                        return FLECHA_DERECHA;
-                    case IZQUIERDA:
-                        return FLECHA_IZQUIERDA;
-                    case ARRIBA:
-                        return FLECHA_ARRIBA;
-                    case ABAJO:
-                        return FLECHA_ABAJO;
-                    case HOME:
-                        return TECLA_HOME;
-                    case END:
-                        return TECLA_FIN;
-                    case INSERT:
-                        entrada = super.read();
-                        if(entrada == TILDE){
-                            return TECLA_INSERT;
-                        }
-                        return -1;
-                    case DELETE:
-                        entrada = super.read();
-                        if(entrada == TILDE){
-                            return TECLA_DELETE;
-                        }
-                        return -1;
-                    default:
-                        return -1;
-                }
+            switch(entrada) {           // Y los podemos diferenciar por el último 'símbolo'. Véase las constantes en 'Dictionary'
+                case Dictionary.SUPRIMIR: // Delete es un caso especial, ya que después de este último 'símbolo' diferencial
+                    int numleido2 = super.read(); //incorpora un ~ que lo comprobamos con numleido2
+                    if (numleido2 == Dictionary.TILDE){
+                        numleido = Dictionary.TECLA_SUPRIMIR;
+                    }
+                    break;
+                case Dictionary.INSERT: //En mi caso, con MacOs, el INSERT será la flecha hacia arriba
+                    return Dictionary.TECLA_INSERT; 
+                case Dictionary.DERECHA:
+                    return Dictionary.FLECHA_DERECHA;
+                case Dictionary.IZQUIERDA:
+                    return Dictionary.FLECHA_IZQUIERDA;
+                case Dictionary.HOME:
+                    return Dictionary.TECLA_HOME;
+                case Dictionary.END:
+                    return Dictionary.TECLA_FIN;
+                default:
+                    System.err.print("Invalid input:)");
+                    break;
             }
-        } else if(entrada == BACKSPACE) {
-            return BACKSPACE;
-        } else {
-            return entrada;
+         }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        return -1;
-    }
+        return numleido;
+    } 
 
     public String readLine() throws IOException {
         this.setRaw();
-        Line linea = new Line();
-        int entrada = 0;
-        entrada = super.read();
-        while(entrada!= ENTER){
-            switch(entrada){
-                case FLECHA_DERECHA:
-                    linea.mover_derecha();
-                    //mover hacia la derecha
+        int entrada = this.read();
+        while(entrada != Dictionary.ENTER_1 && entrada != Dictionary.ENTER_2){ //Nueva línea y retorno de carro
+            switch(entrada){ //En este switch simplemente indicamos la orden que ha de seguir el programa por las 
+                case Dictionary.TECLA_BACKSPACE: //diferentes teclas leídas, con sus correspondientes limitaciones.
+                    if(linea.getPosCursor() > 0) {
+                        linea.backspace();
+                    }
                     break;
-                case FLECHA_IZQUIERDA:
-                    linea.mover_izquierda();
-                    //mover hacia la izquierda
+                case Dictionary.TECLA_SUPRIMIR:
+                    if(linea.getPosCursor() < linea.getLength()){
+                        linea.delete();
+                    }
                     break;
-                case TECLA_HOME:
+                case Dictionary.TECLA_HOME:
                     linea.home();
-                    //ir al principio
                     break;
-                case TECLA_FIN:
+                case Dictionary.TECLA_FIN:
                     linea.end();
-                    //ir al final
                     break;
-                case TECLA_INSERT:
-                    linea.insertar();
-                    //insertar
+                case Dictionary.FLECHA_DERECHA:
+                    if(linea.getPosCursor() < linea.getLength()){
+                        linea.mover_derecha();
+                    }
                     break;
-                case TECLA_DELETE:
-                    linea.borrar_caracter();
-                    //borrar
+                case Dictionary.FLECHA_IZQUIERDA:
+                    if(linea.getPosCursor() != 0){
+                        linea.mover_izquierda();
+                    }
                     break;
-                default: //otro caracter
-                linea.insertar_caracter((char) entrada);
-                    //añadirlo...
+                case Dictionary.TECLA_INSERT:
+                    linea.insertarMode();
+                    break;
+                default:
+                    if(linea.getMode()){
+                        linea.insertar_caracter((char) entrada);
+                    } else {
+                        linea.reemplazar_caracter((char) entrada);
+                    }
                     break;
             }
-            entrada = super.read(); //diría que se tiene que volver a leer
+            entrada = this.read();
         }
-        String str = linea.toString();
-        this.unsetRaw(); 
-        return str;
+        this.unsetRaw();
+        return linea.getLine().toString();
     }
 
     
