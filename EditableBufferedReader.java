@@ -4,110 +4,120 @@ import java.lang.String;
 public class EditableBufferedReader extends BufferedReader {
 
     private Line linea;
+    private Console console;
 
-    public EditableBufferedReader(InputStreamReader in){
+    public EditableBufferedReader(Reader in){
         super(in);
         this.linea = new Line();
+        this.console = new Console();
+        this.linea.addObserver(this.console);
     }
     
-    public void setRaw(){
+    public void setRaw() {
         try{
             String[] cmd = {"/bin/sh","-c", "stty -echo raw </dev/tty"};
             Runtime.getRuntime().exec(cmd);
-        } catch(IOException e) { System.out.println("Error setRaw()");} 
+        } catch(Exception e) { System.out.println("Error setRaw()");} 
     }
 
     public void unsetRaw(){
         try{
             String[] cmd = {"/bin/sh","-c", "stty echo cooked </dev/tty"};
             Runtime.getRuntime().exec(cmd);
-        } catch(IOException e) { System.out.println("Error unsetRaw()");} 
+        } catch(Exception e) { System.out.println("Error unsetRaw()");} 
     }
     
-    public int read() throws IOException {
-        int entrada = 0;
-        entrada = super.read();
-        if(entrada == Dictionary.ESC){
+    public int read() {
+        int numleido = -1;
+        try {
+        int entrada = super.read();
+        if(entrada != Dictionary.ESC){
+            if(entrada == Dictionary.BACKSPACE){
+                return Dictionary.TECLA_BACKSPACE;
+            } else {
+                numleido = entrada;
+            } 
+        } else {
             entrada = super.read();
-            if(entrada == Dictionary.CORCHETE){
-                switch(entrada) {
-                    case Dictionary.DERECHA:
-                        return Dictionary.FLECHA_DERECHA;
-                    case Dictionary.IZQUIERDA:
-                        return Dictionary.FLECHA_IZQUIERDA;
-                    case Dictionary.HOME:
-                        return Dictionary.TECLA_HOME;
-                    case Dictionary.END:
-                        return Dictionary.TECLA_FIN;
-                    case Dictionary.INSERT:
-                        return Dictionary.TECLA_INSERT;
-                    case Dictionary.DELETE: 
-                        entrada = super.read();
-                        if(entrada == Dictionary.TILDE){
-                            return Dictionary.TECLA_DELETE;
-                        }
-                        return -1;
-                    default:
-                        return -1;
-                }
+            entrada = super.read();
+            switch(entrada) {
+                case Dictionary.DELETE:
+                    int numleido2 = super.read();
+                    if (numleido2 == Dictionary.TILDE){
+                        numleido = Dictionary.TECLA_DELETE;
+                    }
+                    break;
+                case Dictionary.INSERT:
+                    int numleido3 = super.read();
+                    if (numleido3 == Dictionary.TILDE){
+                        numleido = Dictionary.TECLA_INSERT;
+                    }
+                    break;
+                case Dictionary.DERECHA:
+                    return Dictionary.FLECHA_DERECHA;
+                case Dictionary.IZQUIERDA:
+                    return Dictionary.FLECHA_IZQUIERDA;
+                case Dictionary.HOME:
+                    return Dictionary.TECLA_HOME;
+                case Dictionary.END:
+                    return Dictionary.TECLA_FIN;
+                default:
+                    System.err.println("Invalid input:)");
+                    break;
             }
-        }       
-        else if(entrada == Dictionary.BACKSPACE) {
-            return Dictionary.BACKSPACE;  
-        }   
-        else {
-            return entrada;
+         }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        return -1;
+        return numleido;
     } 
 
     public String readLine() throws IOException {
         this.setRaw();
-        int entrada = 0;
-        entrada = this.read();
-        while(entrada!= Dictionary.ENTER){
+        int entrada = this.read();
+        while(entrada != Dictionary.ENTER_1 && entrada != Dictionary.ENTER_2){ //Nueva línea y retorno de carro
             switch(entrada){
-                case Dictionary.FLECHA_DERECHA:
-                    linea.mover_derecha();
-                    //mover hacia la derecha
+                case Dictionary.TECLA_BACKSPACE:
+                    if(linea.getPos() > 0) {
+                        linea.backspace();
+                    }
                     break;
-                case Dictionary.FLECHA_IZQUIERDA:
-                    linea.mover_izquierda();
-                    //mover hacia la izquierda
+                case Dictionary.TECLA_DELETE:
+                    if(linea.getPos() < linea.getLength()){
+                        linea.delete();
+                    }
                     break;
                 case Dictionary.TECLA_HOME:
                     linea.home();
-                    //ir al principio
                     break;
-                case Dictionary.TECLA_FIN:
+                case Dictionary.TECLA_FIN: //AIXO NO ESTAVA AL DE L'ALEXIS -> APAREIX el "ߖ"
                     linea.end();
-                    //ir al final
+                    break;
+                case Dictionary.FLECHA_DERECHA:
+                    if(linea.getPos() < linea.getLength()){
+                        linea.mover_derecha();
+                    }
+                    break;
+                case Dictionary.FLECHA_IZQUIERDA:
+                    if(linea.getPos() != 0){
+                        linea.mover_izquierda();
+                    }
                     break;
                 case Dictionary.TECLA_INSERT:
                     linea.insertarMode();
-                    //insertar
                     break;
-                case Dictionary.TECLA_DELETE:
-                    linea.delete();
-                    //borrar
-                    break;
-                case Dictionary.BACKSPACE:
-                    linea.backspace();
-                default: //otro caracter
-                char temp = (char) entrada;
-                linea.insertar_caracter(temp);
-                System.out.print(temp);
-                //linea.insertar_caracter((char) entrada);
-                    //añadirlo...
-
+                default:
+                    if(linea.getMode()){
+                        linea.insertar_caracter((char) entrada);
+                    } else {
+                        linea.reemplazar_caracter((char) entrada);
+                    }
                     break;
             }
-            entrada = super.read(); 
+            entrada = this.read();
         }
-        //String str = linea.toString();
-        String str = linea.getBuffer().toString();
-        this.unsetRaw(); 
-        return str;
+        this.unsetRaw();
+        return linea.getLine().toString();
     }
 
     
